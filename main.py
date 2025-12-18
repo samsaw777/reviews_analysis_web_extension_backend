@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
+from routes.v1 import reviews_summary
 
 app = FastAPI()
 
@@ -25,6 +26,8 @@ async def main():
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
+
+app.include_router(reviews_summary.router, prefix="/api/v1", tags=["review summary"])
 
 
 if __name__ == "__main__":
