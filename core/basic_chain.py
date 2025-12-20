@@ -2,21 +2,55 @@ from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
+import json
 
 load_dotenv()
 
+JSON_SCHEMA = r"""
+{
+  "overall_sentiment": "positive | mixed | negative",
+  "sentiment_score": 0.0,
+  "risk_level": "low | medium | high",
+  "deal_breakers": ["string"],
+  "most_common_complaints": ["string"],
+  "who_should_avoid": "string",
+  "summary": "string"
+}
+"""
 
-def ask_question(question:str) -> str:
-# prompt template
-    prompt = PromptTemplate.from_template("{question}")
+def ask_question(reviews: str) -> dict:
+    prompt = PromptTemplate.from_template(
+        """
+            You are an unbiased product review analyst.
 
-    model = ChatOpenAI()
+            IMPORTANT:
+            - Do NOT assume the product is good just because reviews are mostly positive.
+            - Actively look for complaints, risks, and deal-breakers.
+            - Even minor recurring issues should be reported.
+
+            Analyze the customer reviews below and return ONLY a valid JSON object
+            that strictly follows this schema (no extra text, no markdown):
+
+            {schema}
+
+            Customer Reviews:
+            {reviews}
+        """
+    )
+
+    model = ChatOpenAI(temperature=0.2)
     parser = StrOutputParser()
 
-    # chain
     chain = prompt | model | parser
 
-    #result
-    result = chain.invoke({"question": question})
+    raw_response = chain.invoke(
+        {
+            "reviews": reviews,
+            "schema": JSON_SCHEMA
+        }
+    )
 
-    return result
+    try:
+        return json.loads(raw_response)
+    except json.JSONDecodeError:
+        raise ValueError(f"Invalid JSON returned by LLM:\n{raw_response}")
